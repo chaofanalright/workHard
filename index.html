@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>上班鼓励器 - 9:16 竖屏桌面悬浮摸鱼动力小窗</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-card: #f7f6f2;
+      --bg-panel: #efede7;
+      --text-main: #1e293b;
+      --accent-blue: #1d4ed8;
+      --accent-money: #c2410c;
+    }
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+    body {
+      font-family: 'Noto Sans SC', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: radial-gradient(circle at 20% 20%, #1e293b 0%, #0f172a 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+    }
+    .font-mono-num {
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    /* Paper texture subtle effect matching the original screenshot */
+    .paper-surface {
+      background-color: #f6f5f0;
+      background-image: 
+        radial-gradient(at 100% 0%, rgba(29, 78, 216, 0.04) 0px, transparent 50%),
+        radial-gradient(at 0% 100%, rgba(194, 65, 12, 0.05) 0px, transparent 50%);
+    }
+    .dark-surface {
+      background-color: #131824;
+      background-image: 
+        radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.12) 0px, transparent 50%),
+        radial-gradient(at 0% 100%, rgba(249, 115, 22, 0.10) 0px, transparent 50%);
+      color: #f1f5f9;
+    }
+    .dark-surface .dark-title {
+      color: #f8fafc !important;
+    }
+    .dark-surface .dark-subtext {
+      color: #cbd5e1 !important;
+    }
+    .dark-surface .dark-card {
+      background-color: rgba(30, 41, 59, 0.75) !important;
+      border-color: rgba(51, 65, 85, 0.9) !important;
+    }
+    .dark-surface .dark-panel {
+      background-color: rgba(30, 41, 59, 0.55) !important;
+      border-color: rgba(51, 65, 85, 0.8) !important;
+    }
+    .dark-surface .dark-blue {
+      color: #60a5fa !important;
+    }
+    .dark-surface .dark-money {
+      color: #fb923c !important;
+    }
+    /* Enforce 9:16 portrait aspect ratio container */
+    .widget-9-16 {
+      width: min(92vw, 378px);
+      aspect-ratio: 9 / 16;
+      max-height: 92vh;
+      position: relative;
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    /* Simulated Top-Right Corner Dock Mode inside viewport */
+    body.docked-top-right {
+      justify-content: flex-start;
+      align-items: flex-end;
+      padding: 12px 16px;
+    }
+    body.docked-top-right #helperBar {
+      max-width: 324px;
+    }
+    body.docked-top-right .widget-9-16 {
+      width: min(88vw, 324px);
+      aspect-ratio: 9 / 16;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.15);
+    }
+    /* Custom scrollbar for inner body if viewport height is very compact */
+    .custom-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(120, 113, 108, 0.25);
+      border-radius: 4px;
+    }
+    /* Coin float animation */
+    @keyframes floatUp {
+      0% { opacity: 1; transform: translateY(0) scale(0.9); }
+      100% { opacity: 0; transform: translateY(-22px) scale(1.1); }
+    }
+    .coin-particle {
+      animation: floatUp 0.9s ease-out forwards;
+      pointer-events: none;
+    }
+    /* Pulse glow for active work badge */
+    @keyframes softPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.55; transform: scale(0.92); }
+    }
+    .status-dot {
+      animation: softPulse 2s infinite ease-in-out;
+    }
+    input[type="time"]::-webkit-calendar-picker-indicator {
+      cursor: pointer;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body class="p-2 sm:p-4">
+
+  <!-- Top Helper Bar (Outside the 9:16 Window for Quick Window Management) -->
+  <div id="helperBar" class="w-full max-w-[378px] mb-2 flex flex-wrap items-center justify-between gap-1.5 text-xs text-slate-300/90 px-0.5 transition-all">
+    <div class="flex items-center gap-1.5">
+      <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-800/90 border border-slate-700 text-slate-200 font-medium text-[11px]">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+        9:16 竖屏小窗
+      </span>
+    </div>
+    <div class="flex items-center gap-1">
+      <button id="btnPipTop" type="button" class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-600/90 hover:bg-blue-500 text-white font-medium text-[11px] transition shadow-sm" title="开启系统级 9:16 画中画小窗，常驻屏幕右上角">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+        <span>画中画常驻右上角</span>
+      </button>
+      <button id="btnCornerPreview" type="button" class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600/80 text-slate-200 text-[11px] transition" title="在页面右上角预览竖屏小窗尺寸">
+        <span id="cornerPreviewLabel">右上角小窗预览</span>
+      </button>
+      <button id="btnThemeToggle" type="button" class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600/80 text-slate-200 text-[11px] transition" title="切换纸质护眼/深色模式">
+        <span id="themeIcon">☀️ 纸感</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- MAIN 9:16 PORTRAIT WORK MOTIVATOR WINDOW -->
+  <div id="appWindow" class="widget-9-16 paper-surface rounded-2xl shadow-2xl border border-stone-300/90 overflow-hidden flex flex-col justify-between transition-colors duration-300">
+    
+    <!-- 1. OS Window Top Bar & App Title Header (Matches Screenshot Layout) -->
+    <header id="titleBar" class="shrink-0 border-b border-stone-200/80 bg-white/50 backdrop-blur-sm">
+      <!-- Subtle OS Window Strip -->
+      <div class="h-7 px-3 flex items-center justify-between text-[11px] text-stone-500 border-b border-stone-200/50">
+        <div class="flex items-center gap-1.5">
+          <span class="w-3.5 h-3.5 rounded-full bg-slate-700 text-white flex items-center justify-center text-[9px] font-bold">¥</span>
+          <span class="font-medium text-stone-600 dark-subtext">上班鼓励器</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <button id="btnMinimize" type="button" class="w-5 h-5 rounded hover:bg-stone-200/70 flex items-center justify-center text-stone-500 transition" title="切换右上角小窗模式">
+            <span class="text-[10px] leading-none">─</span>
+          </button>
+          <button id="btnPipWindow" type="button" class="w-5 h-5 rounded hover:bg-blue-100 hover:text-blue-700 flex items-center justify-center text-stone-500 transition" title="弹出 9:16 画中画独立悬浮窗">
+            <span class="text-[10px] leading-none">❐</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- App Brand & Settings Row -->
+      <div class="h-11 px-4 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <!-- Blue Flame/Timer Badge from Screenshot -->
+          <div class="w-6 h-6 rounded-md bg-blue-700 flex items-center justify-center text-white shadow-sm">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C9.5 5.5 7 8.5 7 12.5C7 15.8 9.2 18.5 12 19.5C14.8 18.5 17 15.8 17 12.5C17 10.8 16.2 9.1 15 7.5C14.8 9.2 13.8 10.2 12.8 10.5C13.5 8.2 13.2 5 12 2ZM12 17C10.3 17 9 15.5 9 13.6C9 12.2 9.8 10.9 10.9 9.9C10.8 11.1 11.4 12.1 12.4 12.4C12.1 11.2 12.4 10 13.1 9.1C14.2 10.3 15 11.8 15 13.6C15 15.5 13.7 17 12 17Z"/>
+            </svg>
+          </div>
+          <span class="font-bold text-base tracking-tight text-slate-800 dark-title">上班鼓励器</span>
+        </div>
+
+        <button id="btnOpenSettings" type="button" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-stone-600 dark-subtext hover:text-slate-900 hover:bg-stone-200/60 transition">
+          <svg class="w-3.5 h-3.5 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          <span>设置</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 2. Main 9:16 Vertical Stack Body (Faithfully Follows the Screenshot Vertical Hierarchy) -->
+    <main class="flex-1 flex flex-col justify-between px-5 py-3.5 overflow-y-auto custom-scroll">
+      
+      <!-- Top Section: Date/Time + Work Status + Off-Work Countdown -->
+      <section>
+        <div class="flex items-center justify-between text-xs text-stone-500 dark-subtext font-mono-num mb-2">
+          <span id="liveDateTime">2026-11-03 周二 15:05:36</span>
+          <span id="workScheduleBadge" class="px-1.5 py-0.5 rounded bg-stone-200/70 text-stone-600 text-[10px]">
+            09:00 - 18:00
+          </span>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-blue-700 status-dot"></span>
+          <h1 id="workStatusTitle" class="text-2xl font-extrabold text-blue-800 dark-blue tracking-tight">上班中</h1>
+        </div>
+
+        <p class="mt-1 text-sm font-medium text-stone-700 dark-subtext">
+          <span id="countdownLabel">距离下班还有</span>
+          <span id="countdownValue" class="font-mono-num font-bold text-slate-900 dark-title ml-1">2小时54分23秒</span>
+        </p>
+      </section>
+
+      <!-- Middle Hero Section: Today's Earned Money & Speed & Fun Milestone -->
+      <section class="my-1.5 py-2.5 px-3.5 rounded-xl bg-white/65 border border-stone-200/80 shadow-sm dark-card">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-stone-500 dark-subtext">今日已赚</span>
+          <button id="btnQuickBossKey" type="button" class="text-[11px] px-2 py-0.5 rounded-full bg-amber-100/90 hover:bg-amber-200 text-amber-800 font-medium transition" title="点我给自己加鸡腿">
+            🎉 鼓励一下
+          </button>
+        </div>
+
+        <div class="mt-0.5 flex items-baseline gap-1 relative">
+          <span id="todayEarnedDisplay" class="font-mono-num text-4xl font-extrabold tracking-tight text-[#b84318] dark-money">
+            ¥79.1922
+          </span>
+          <span id="coinParticleContainer" class="relative inline-block w-10 h-6"></span>
+        </div>
+
+        <div class="mt-1 text-xs text-stone-500 dark-subtext font-mono-num">
+          当前赚钱速度 <strong id="speedPerSec" class="text-stone-700 dark-title font-semibold">¥0.0048</strong> / 秒
+        </div>
+
+        <div class="mt-2 pt-2 border-t border-stone-200/70 flex items-center justify-between gap-2 text-xs text-stone-700 dark-subtext">
+          <p id="milestoneText" class="truncate font-medium">
+            再过 2 小时 53 分，一件 T 恤就赚回来了。
+          </p>
+          <button id="btnNextMilestone" type="button" class="shrink-0 text-[11px] text-blue-700 dark-blue hover:underline font-medium" title="切换心愿目标物">
+            换个目标
+          </button>
+        </div>
+      </section>
+
+      <!-- Primary Action Button: Close / Pause Timer (Matches Full-Width Dark Button in Screenshot) -->
+      <section class="my-1">
+        <button id="btnToggleTimer" type="button" class="w-full py-2.5 px-4 rounded-lg bg-[#141b2d] hover:bg-[#1e2942] active:scale-[0.99] text-white font-semibold text-sm tracking-wide shadow transition flex items-center justify-center gap-2">
+          <span id="toggleTimerText">关闭计时器</span>
+        </button>
+      </section>
+
+      <!-- Work Hours Progress Section -->
+      <section class="my-1 pt-1">
+        <div class="flex items-center justify-between text-xs font-semibold text-stone-700 dark-title">
+          <span>今日工时进度 <span id="progressPercent" class="font-mono-num text-blue-800 dark-blue">61.2%</span></span>
+        </div>
+        <div class="mt-0.5 text-xs text-stone-500 dark-subtext font-mono-num">
+          已工作 <span id="workedHoursText">4.59 / 7.50</span> 小时
+        </div>
+        <div class="mt-1.5 w-full h-2 bg-stone-300/85 rounded-full overflow-hidden">
+          <div id="progressBarFill" class="h-full bg-blue-700 rounded-full transition-all duration-300" style="width: 61.2%;"></div>
+        </div>
+      </section>
+
+      <!-- Monthly Cumulative Section -->
+      <section class="my-1 py-2.5 border-y border-stone-200/90">
+        <div class="flex items-baseline justify-between gap-2">
+          <span class="text-xs font-semibold text-stone-700 dark-title">本月累计</span>
+          <span id="monthlyTotalDisplay" class="font-mono-num text-lg font-bold text-blue-800 dark-blue">
+            ¥79.1922
+          </span>
+        </div>
+        <div class="mt-1 flex items-center justify-between gap-1.5">
+          <p class="text-[11px] leading-snug text-stone-500 dark-subtext">
+            已过的日子按满勤补算。本月只计已赚，不含亏损。
+          </p>
+          <button id="btnToggleMonthMode" type="button" class="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-stone-200 hover:bg-stone-300 text-stone-700 font-medium transition" title="切换：含本月已过工作日满勤 / 仅计今日">
+            <span id="monthModeLabel">仅今日</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Footer Stats: Hourly Wage & Full Attendance Daily Salary (Stacked Left-Aligned as in Screenshot) -->
+      <footer class="pt-0.5 text-xs text-stone-600 dark-subtext space-y-0.5 font-mono-num">
+        <div>时薪 <strong class="font-semibold text-stone-800 dark-title" id="hourlyWageDisplay">¥17.24</strong></div>
+        <div>今日满勤可得 <strong class="font-semibold text-stone-800 dark-title" id="dailyFullDisplay">¥129.30</strong></div>
+      </footer>
+
+    </main>
+
+    <!-- INITIAL / SETTINGS MODAL OVERLAY (9:16 Vertical Layout - Opens First for Off-work Time & Daily Salary) -->
+    <div id="setupOverlay" class="absolute inset-0 z-30 bg-[#f6f5f0]/98 backdrop-blur-md flex flex-col justify-between p-5 transition-opacity duration-200">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between border-b border-stone-200 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 rounded-md bg-blue-700 flex items-center justify-center text-white text-xs font-bold">¥</div>
+          <div>
+            <h2 class="text-base font-bold text-slate-800 leading-tight">上班鼓励器 · 设定</h2>
+            <p class="text-[11px] text-stone-500">输入下班时间与日薪，开启实时搞钱</p>
+          </div>
+        </div>
+        <button id="btnCloseSetup" type="button" class="text-xs text-stone-500 hover:text-slate-800 px-2 py-1 rounded hover:bg-stone-200/60 transition hidden">
+          返回看板 ✕
+        </button>
+      </div>
+
+      <!-- Modal Form (Vertical 9:16 Stack) -->
+      <form id="setupForm" class="my-auto flex flex-col gap-3 py-2">
+        
+        <!-- Primary Input 1: Off-work Time (下班时间) -->
+        <div class="bg-white p-3.5 rounded-xl border-2 border-blue-600/80 shadow-sm">
+          <div class="flex items-center justify-between mb-1">
+            <label for="inputEndTime" class="text-xs font-bold uppercase tracking-wider text-blue-700">
+              ① 下班时间 (必填)
+            </label>
+            <span class="text-[11px] text-stone-400">精准倒计时到秒</span>
+          </div>
+          <input id="inputEndTime" type="time" value="18:00" required
+            class="w-full font-mono-num text-2xl font-bold text-slate-900 bg-transparent focus:outline-none" />
+        </div>
+
+        <!-- Primary Input 2: Daily Salary (日薪) -->
+        <div class="bg-white p-3.5 rounded-xl border-2 border-orange-600/80 shadow-sm">
+          <div class="flex items-center justify-between mb-1">
+            <label for="inputDailySalary" class="text-xs font-bold uppercase tracking-wider text-orange-700">
+              ② 今日日薪 (元 / 必填)
+            </label>
+            <span class="text-[11px] text-stone-400">今日满勤总额</span>
+          </div>
+          <div class="flex items-baseline gap-1">
+            <span class="font-mono-num text-xl font-bold text-orange-700">¥</span>
+            <input id="inputDailySalary" type="number" step="0.01" min="1" max="999999" value="129.30" required
+              placeholder="例如 300"
+              class="w-full font-mono-num text-2xl font-bold text-slate-900 bg-transparent focus:outline-none" />
+          </div>
+          <div class="mt-2 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px] text-stone-500">
+            <span>快捷填入:</span>
+            <div class="flex items-center gap-1">
+              <button type="button" data-preset-salary="129.30" class="px-2 py-0.5 rounded bg-stone-100 hover:bg-orange-100 text-stone-700 font-mono-num">129.3</button>
+              <button type="button" data-preset-salary="300" class="px-2 py-0.5 rounded bg-stone-100 hover:bg-orange-100 text-stone-700 font-mono-num">300</button>
+              <button type="button" data-preset-salary="500" class="px-2 py-0.5 rounded bg-stone-100 hover:bg-orange-100 text-stone-700 font-mono-num">500</button>
+              <button type="button" data-preset-salary="800" class="px-2 py-0.5 rounded bg-stone-100 hover:bg-orange-100 text-stone-700 font-mono-num">800</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Secondary Auxiliary Settings: Work Hours & Passed Full Days -->
+        <div class="bg-stone-100/90 p-3 rounded-xl border border-stone-200/90 space-y-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <label for="inputWorkHours" class="text-xs font-semibold text-stone-600">每日额定工时 (小时)</label>
+            <input id="inputWorkHours" type="number" step="0.5" min="0.5" max="24" value="7.5"
+              class="w-20 text-right font-mono-num text-sm font-bold bg-white px-2 py-1 rounded border border-stone-300 focus:outline-none focus:border-blue-600" />
+          </div>
+          <div class="flex items-center justify-between gap-2">
+            <label for="inputPassedDays" class="text-xs font-semibold text-stone-600">本月已过满勤天数</label>
+            <input id="inputPassedDays" type="number" step="1" min="0" max="31" value="0"
+              class="w-20 text-right font-mono-num text-sm font-bold bg-white px-2 py-1 rounded border border-stone-300 focus:outline-none focus:border-blue-600" />
+          </div>
+        </div>
+
+        <!-- Real-time Rate Preview Box -->
+        <div class="px-3 py-2 rounded-lg bg-stone-200/60 flex items-center justify-between text-xs text-stone-600">
+          <span>折合时薪: <strong id="previewHourly" class="font-mono-num text-slate-800">¥17.24</strong>/h</span>
+          <span>每秒进账: <strong id="previewSecond" class="font-mono-num text-orange-700">¥0.0048</strong>/秒</span>
+        </div>
+
+        <!-- Submit Button -->
+        <button type="submit" class="w-full py-3 rounded-xl bg-blue-700 hover:bg-blue-800 active:scale-[0.99] text-white font-bold text-sm shadow-md hover:shadow-lg transition flex items-center justify-center gap-2">
+          <span>🚀 开始今日搞钱计时</span>
+        </button>
+      </form>
+
+      <!-- Modal Footer Tip -->
+      <div class="text-[11px] text-stone-400 flex items-center justify-between border-t border-stone-200/80 pt-2">
+        <span>💡 支持「画中画常驻」以 9:16 竖屏悬浮右上角</span>
+        <span class="font-mono-num">9:16 UI</span>
+      </div>
+    </div>
+
+    <!-- Toast Notification Inside Window -->
+    <div id="toastBanner" class="pointer-events-none opacity-0 transition-opacity duration-300 absolute bottom-3 left-1/2 -translate-x-1/2 z-40 px-3.5 py-1.5 rounded-full bg-slate-900/90 text-white text-xs font-medium shadow-lg whitespace-nowrap">
+      已更新配置
+    </div>
+
+  </div>
+
+  <!-- Hidden 9:16 Portrait Canvas & Video Element for System-Level Picture-in-Picture (360x640) -->
+  <canvas id="pipCanvas" width="360" height="640" class="hidden"></canvas>
+  <video id="pipVideo" muted playsinline class="hidden"></video>
+
+  <script>
+    (function () {
+      // --- State & Default Configuration (Matches the Screenshot's Exact Numbers by Default) ---
+      const state = {
+        endTimeStr: '18:00',       // Off-work time
+        dailySalary: 129.30,       // Daily full salary (¥129.30 in screenshot)
+        workHours: 7.50,           // Total daily work hours (7.50h in screenshot)
+        passedDays: 0,             // Past full attendance days in current month
+        includeMonthHistory: false,// Toggle between today-only vs passedDays * dailySalary
+        isRunning: true,           // Timer running or paused
+        pausedAtMs: null,          // Timestamp when paused
+        darkMode: false,           // Paper theme vs Dark theme
+        dockedCorner: false,       // Simulated top-right mini-window mode
+        milestoneIndex: 0,         // Current fun reward item index
+        hasConfigured: false       // Starts with the setup overlay open as requested
+      };
+
+      // Fun consumer milestones to motivate working
+      const MILESTONES = [
+        { name: '一件 T 恤', price: 49.9 },
+        { name: '一杯冰美式', price: 16.0 },
+        { name: '一杯霸王茶姬', price: 22.0 },
+        { name: '一顿豪华猪脚饭', price: 32.0 },
+        { name: '一张 IMAX 电影票', price: 65.0 },
+        { name: '一顿海底捞火锅', price: 145.0 },
+        { name: '一款 Steam 3A 大作', price: 268.0 }
+      ];
+
+      // Load saved preferences from localStorage safely
+      try {
+        const saved = localStorage.getItem('work_motivator_16_9_cfg');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.endTimeStr) state.endTimeStr = parsed.endTimeStr;
+          if (typeof parsed.dailySalary === 'number' && parsed.dailySalary > 0) state.dailySalary = parsed.dailySalary;
+          if (typeof parsed.workHours === 'number' && parsed.workHours > 0) state.workHours = parsed.workHours;
+          if (typeof parsed.passedDays === 'number' && parsed.passedDays >= 0) state.passedDays = parsed.passedDays;
+        }
+      } catch (e) {
+        // Ignore storage restrictions
+      }
+
+      // --- DOM Elements ---
+      const appWindow = document.getElementById('appWindow');
+      const setupOverlay = document.getElementById('setupOverlay');
+      const setupForm = document.getElementById('setupForm');
+      const btnCloseSetup = document.getElementById('btnCloseSetup');
+      const btnOpenSettings = document.getElementById('btnOpenSettings');
+
+      const inputEndTime = document.getElementById('inputEndTime');
+      const inputDailySalary = document.getElementById('inputDailySalary');
+      const inputWorkHours = document.getElementById('inputWorkHours');
+      const inputPassedDays = document.getElementById('inputPassedDays');
+      const previewHourly = document.getElementById('previewHourly');
+      const previewSecond = document.getElementById('previewSecond');
+
+      const liveDateTime = document.getElementById('liveDateTime');
+      const statusDot = document.getElementById('statusDot');
+      const workStatusTitle = document.getElementById('workStatusTitle');
+      const workScheduleBadge = document.getElementById('workScheduleBadge');
+      const countdownLabel = document.getElementById('countdownLabel');
+      const countdownValue = document.getElementById('countdownValue');
+
+      const todayEarnedDisplay = document.getElementById('todayEarnedDisplay');
+      const speedPerSec = document.getElementById('speedPerSec');
+      const milestoneText = document.getElementById('milestoneText');
+      const btnNextMilestone = document.getElementById('btnNextMilestone');
+      const coinParticleContainer = document.getElementById('coinParticleContainer');
+
+      const btnToggleTimer = document.getElementById('btnToggleTimer');
+      const toggleTimerText = document.getElementById('toggleTimerText');
+      const btnQuickBossKey = document.getElementById('btnQuickBossKey');
+
+      const progressPercent = document.getElementById('progressPercent');
+      const workedHoursText = document.getElementById('workedHoursText');
+      const progressBarFill = document.getElementById('progressBarFill');
+
+      const monthlyTotalDisplay = document.getElementById('monthlyTotalDisplay');
+      const btnToggleMonthMode = document.getElementById('btnToggleMonthMode');
+      const monthModeLabel = document.getElementById('monthModeLabel');
+
+      const hourlyWageDisplay = document.getElementById('hourlyWageDisplay');
+      const dailyFullDisplay = document.getElementById('dailyFullDisplay');
+
+      const btnPipTop = document.getElementById('btnPipTop');
+      const btnPipWindow = document.getElementById('btnPipWindow');
+      const btnCornerPreview = document.getElementById('btnCornerPreview');
+      const cornerPreviewLabel = document.getElementById('cornerPreviewLabel');
+      const btnMinimize = document.getElementById('btnMinimize');
+      const btnThemeToggle = document.getElementById('btnThemeToggle');
+      const themeIcon = document.getElementById('themeIcon');
+      const toastBanner = document.getElementById('toastBanner');
+
+      const pipCanvas = document.getElementById('pipCanvas');
+      const pipCtx = pipCanvas.getContext('2d');
+      const pipVideo = document.getElementById('pipVideo');
+
+      // Populate initial form values
+      inputEndTime.value = state.endTimeStr;
+      inputDailySalary.value = state.dailySalary;
+      inputWorkHours.value = state.workHours;
+      inputPassedDays.value = state.passedDays;
+
+      function showToast(msg) {
+        toastBanner.textContent = msg;
+        toastBanner.classList.remove('opacity-0');
+        toastBanner.classList.add('opacity-100');
+        clearTimeout(showToast._timer);
+        showToast._timer = setTimeout(() => {
+          toastBanner.classList.remove('opacity-100');
+          toastBanner.classList.add('opacity-0');
+        }, 2200);
+      }
+
+      // Update live preview inside the setup modal
+      function updateModalPreview() {
+        const salary = parseFloat(inputDailySalary.value) || 0;
+        const hours = parseFloat(inputWorkHours.value) || 7.5;
+        const hourly = hours > 0 ? salary / hours : 0;
+        const perSec = hourly / 3600;
+        previewHourly.textContent = '¥' + hourly.toFixed(2);
+        previewSecond.textContent = '¥' + perSec.toFixed(4);
+      }
+
+      inputDailySalary.addEventListener('input', updateModalPreview);
+      inputWorkHours.addEventListener('input', updateModalPreview);
+      updateModalPreview();
+
+      // Quick preset salary buttons
+      document.querySelectorAll('[data-preset-salary]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          inputDailySalary.value = btn.getAttribute('data-preset-salary');
+          updateModalPreview();
+        });
+      });
+
+      // Format Date/Time like "2026-11-02 周一 15:05:36"
+      const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+      function formatDateTime(now) {
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        const w = WEEKDAYS[now.getDay()];
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const ss = String(now.getSeconds()).padStart(2, '0');
+        return `${y}-${m}-${d} ${w} ${hh}:${mm}:${ss}`;
+      }
+
+      // Compute Core Metrics for a given timestamp
+      function computeMetrics(now) {
+        const [endH, endM] = (state.endTimeStr || '18:00').split(':').map(Number);
+        const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), endH || 18, endM || 0, 0, 0);
+
+        const totalWorkSeconds = Math.max(1800, (state.workHours || 7.5) * 3600);
+        const startDate = new Date(endDate.getTime() - totalWorkSeconds * 1000);
+
+        const startHH = String(startDate.getHours()).padStart(2, '0');
+        const startMM = String(startDate.getMinutes()).padStart(2, '0');
+        const endHH = String(endDate.getHours()).padStart(2, '0');
+        const endMM = String(endDate.getMinutes()).padStart(2, '0');
+
+        const remainingMs = endDate.getTime() - now.getTime();
+        const elapsedMs = now.getTime() - startDate.getTime();
+
+        const elapsedSeconds = Math.max(0, Math.min(totalWorkSeconds, elapsedMs / 1000));
+        const remainingSeconds = Math.max(0, remainingMs / 1000);
+
+        const progressRatio = Math.max(0, Math.min(1, elapsedSeconds / totalWorkSeconds));
+        const workedHours = elapsedSeconds / 3600;
+
+        const hourlyWage = state.dailySalary / state.workHours;
+        const ratePerSecond = state.dailySalary / totalWorkSeconds;
+        const todayEarned = state.dailySalary * progressRatio;
+
+        const baseDays = state.includeMonthHistory ? state.passedDays : 0;
+        const monthlyEarned = baseDays * state.dailySalary + todayEarned;
+
+        // Status determination
+        let statusText = '上班中';
+        let isOffWork = false;
+        if (!state.isRunning) {
+          statusText = '计时已暂停';
+        } else if (remainingMs <= 0) {
+          statusText = '已到点下班 🎉';
+          isOffWork = true;
+        } else if (elapsedMs < 0) {
+          statusText = '待开工';
+        }
+
+        // Countdown text
+        const remWholeSec = Math.ceil(remainingSeconds);
+        const remH = Math.floor(remWholeSec / 3600);
+        const remM = Math.floor((remWholeSec % 3600) / 60);
+        const remS = remWholeSec % 60;
+
+        // Milestone calculation
+        const item = MILESTONES[state.milestoneIndex % MILESTONES.length];
+        const earnedMod = todayEarned % item.price;
+        const secToNextItem = ratePerSecond > 0 ? Math.max(1, Math.ceil((item.price - earnedMod) / ratePerSecond)) : 0;
+        const itemH = Math.floor(secToNextItem / 3600);
+        const itemM = Math.floor((secToNextItem % 3600) / 60);
+        const itemS = secToNextItem % 60;
+
+        let milestoneStr = '';
+        if (itemH > 0) {
+          milestoneStr = `再过 ${itemH} 小时 ${itemM} 分，${item.name}就赚回来了。`;
+        } else if (itemM > 0) {
+          milestoneStr = `再过 ${itemM} 分 ${itemS} 秒，${item.name}就赚回来了。`;
+        } else {
+          milestoneStr = `再过 ${itemS} 秒，${item.name}就赚回来了！`;
+        }
+
+        return {
+          dateTimeStr: formatDateTime(now),
+          scheduleStr: `${startHH}:${startMM} - ${endHH}:${endMM}`,
+          statusText,
+          isOffWork,
+          remH,
+          remM,
+          remS,
+          todayEarned,
+          ratePerSecond,
+          milestoneStr,
+          progressPct: progressRatio * 100,
+          workedHours,
+          monthlyEarned,
+          hourlyWage
+        };
+      }
+
+      // Render DOM & 9:16 Portrait Canvas PiP
+      let lastRenderedData = null;
+      function renderTick() {
+        const now = state.isRunning ? new Date() : (state.pausedAtMs ? new Date(state.pausedAtMs) : new Date());
+        const data = computeMetrics(now);
+        lastRenderedData = data;
+
+        liveDateTime.textContent = data.dateTimeStr;
+        workStatusTitle.textContent = data.statusText;
+        workScheduleBadge.textContent = data.scheduleStr;
+
+        if (data.isOffWork) {
+          countdownLabel.textContent = '今日工时已满';
+          countdownValue.textContent = '0小时00分00秒 · 快下班啦！';
+          statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 status-dot';
+        } else {
+          countdownLabel.textContent = '距离下班还有';
+          countdownValue.textContent = `${data.remH}小时${String(data.remM).padStart(2, '0')}分${String(data.remS).padStart(2, '0')}秒`;
+          statusDot.className = state.isRunning
+            ? 'w-2.5 h-2.5 rounded-full bg-blue-700 status-dot'
+            : 'w-2.5 h-2.5 rounded-full bg-amber-500';
+        }
+
+        todayEarnedDisplay.textContent = '¥' + data.todayEarned.toFixed(4);
+        speedPerSec.textContent = '¥' + data.ratePerSecond.toFixed(4);
+        milestoneText.textContent = data.milestoneStr;
+
+        const pctStr = data.progressPct.toFixed(1) + '%';
+        progressPercent.textContent = pctStr;
+        workedHoursText.textContent = `${data.workedHours.toFixed(2)} / ${state.workHours.toFixed(2)}`;
+        progressBarFill.style.width = `${Math.min(100, Math.max(0, data.progressPct))}%`;
+
+        monthlyTotalDisplay.textContent = '¥' + data.monthlyEarned.toFixed(4);
+        hourlyWageDisplay.textContent = '¥' + data.hourlyWage.toFixed(2);
+        dailyFullDisplay.textContent = '¥' + state.dailySalary.toFixed(2);
+
+        // Update the 9:16 Portrait Canvas so Picture-in-Picture floating window matches the vertical layout!
+        drawPipCanvas(data);
+      }
+
+      // Draw a crisp 9:16 (360x640) Portrait Widget onto the hidden Canvas for OS-level Picture-in-Picture
+      function drawPipCanvas(d) {
+        if (!pipCtx) return;
+        const w = pipCanvas.width;   // 360
+        const h = pipCanvas.height;  // 640
+
+        // Background
+        pipCtx.fillStyle = state.darkMode ? '#131824' : '#f6f5f0';
+        pipCtx.fillRect(0, 0, w, h);
+
+        // Top Header Bar
+        pipCtx.fillStyle = state.darkMode ? '#1e293b' : '#ebe9e1';
+        pipCtx.fillRect(0, 0, w, 48);
+
+        pipCtx.fillStyle = '#1d4ed8';
+        pipCtx.fillRect(22, 14, 20, 20);
+        pipCtx.fillStyle = '#ffffff';
+        pipCtx.font = 'bold 13px sans-serif';
+        pipCtx.fillText('¥', 28, 29);
+
+        pipCtx.fillStyle = state.darkMode ? '#f8fafc' : '#1e293b';
+        pipCtx.font = 'bold 16px "Noto Sans SC", sans-serif';
+        pipCtx.fillText('上班鼓励器', 50, 30);
+
+        // Date & Time
+        pipCtx.fillStyle = state.darkMode ? '#94a3b8' : '#78716c';
+        pipCtx.font = '13px monospace';
+        pipCtx.fillText(d.dateTimeStr, 24, 82);
+
+        // Work Status
+        pipCtx.fillStyle = state.darkMode ? '#60a5fa' : '#1e40af';
+        pipCtx.font = 'bold 28px "Noto Sans SC", sans-serif';
+        pipCtx.fillText(d.statusText, 24, 124);
+
+        // Countdown
+        pipCtx.fillStyle = state.darkMode ? '#cbd5e1' : '#44403c';
+        pipCtx.font = '15px "Noto Sans SC", sans-serif';
+        const cdStr = d.isOffWork
+          ? '今日工时已满，快收拾背包下班！'
+          : `距离下班还有 ${d.remH}小时${String(d.remM).padStart(2, '0')}分${String(d.remS).padStart(2, '0')}秒`;
+        pipCtx.fillText(cdStr, 24, 154);
+
+        // Today Earned Section
+        pipCtx.fillStyle = state.darkMode ? '#94a3b8' : '#78716c';
+        pipCtx.font = '14px "Noto Sans SC", sans-serif';
+        pipCtx.fillText('今日已赚', 24, 198);
+
+        pipCtx.fillStyle = state.darkMode ? '#fb923c' : '#b84318';
+        pipCtx.font = 'bold 46px monospace';
+        pipCtx.fillText('¥' + d.todayEarned.toFixed(4), 24, 250);
+
+        pipCtx.fillStyle = state.darkMode ? '#94a3b8' : '#78716c';
+        pipCtx.font = '13px "Noto Sans SC", sans-serif';
+        pipCtx.fillText(`当前赚钱速度 ¥${d.ratePerSecond.toFixed(4)} / 秒`, 24, 282);
+
+        pipCtx.fillStyle = state.darkMode ? '#cbd5e1' : '#44403c';
+        pipCtx.font = '13px "Noto Sans SC", sans-serif';
+        pipCtx.fillText(d.milestoneStr, 24, 312);
+
+        // Dark Action Bar (Visual representation in PiP)
+        pipCtx.fillStyle = '#141b2d';
+        pipCtx.fillRect(24, 336, w - 48, 42);
+        pipCtx.fillStyle = '#ffffff';
+        pipCtx.font = 'bold 14px "Noto Sans SC", sans-serif';
+        pipCtx.fillText(state.isRunning ? '实时计薪跳动中' : '计时器已暂停', 130, 362);
+
+        // Progress Section
+        pipCtx.fillStyle = state.darkMode ? '#e2e8f0' : '#44403c';
+        pipCtx.font = 'bold 14px "Noto Sans SC", sans-serif';
+        pipCtx.fillText(`今日工时进度 ${d.progressPct.toFixed(1)}%`, 24, 416);
+
+        pipCtx.fillStyle = state.darkMode ? '#94a3b8' : '#78716c';
+        pipCtx.font = '13px monospace';
+        pipCtx.fillText(`已工作 ${d.workedHours.toFixed(2)} / ${state.workHours.toFixed(2)} 小时`, 24, 440);
+
+        // Progress Bar Track & Fill
+        pipCtx.fillStyle = state.darkMode ? '#334155' : '#d6d3d1';
+        pipCtx.fillRect(24, 454, w - 48, 8);
+        pipCtx.fillStyle = '#1d4ed8';
+        pipCtx.fillRect(24, 454, Math.round((w - 48) * Math.min(1, Math.max(0, d.progressPct / 100))), 8);
+
+        // Divider
+        pipCtx.fillStyle = state.darkMode ? '#334155' : '#e7e5e4';
+        pipCtx.fillRect(24, 484, w - 48, 1);
+
+        // Monthly Cumulative
+        pipCtx.fillStyle = state.darkMode ? '#e2e8f0' : '#44403c';
+        pipCtx.font = 'bold 14px "Noto Sans SC", sans-serif';
+        pipCtx.fillText('本月累计', 24, 516);
+
+        pipCtx.fillStyle = state.darkMode ? '#60a5fa' : '#1e40af';
+        pipCtx.font = 'bold 20px monospace';
+        pipCtx.fillText('¥' + d.monthlyEarned.toFixed(4), w - 150, 516);
+
+        pipCtx.fillStyle = state.darkMode ? '#94a3b8' : '#78716c';
+        pipCtx.font = '12px "Noto Sans SC", sans-serif';
+        pipCtx.fillText('已过的日子按满勤补算。本月只计已赚，不含亏损。', 24, 542);
+
+        // Divider
+        pipCtx.fillStyle = state.darkMode ? '#334155' : '#e7e5e4';
+        pipCtx.fillRect(24, 562, w - 48, 1);
+
+        // Bottom Stats
+        pipCtx.fillStyle = state.darkMode ? '#cbd5e1' : '#57534e';
+        pipCtx.font = '13px monospace';
+        pipCtx.fillText(`时薪 ¥${d.hourlyWage.toFixed(2)}`, 24, 590);
+        pipCtx.fillText(`今日满勤可得 ¥${state.dailySalary.toFixed(2)}`, 24, 614);
+      }
+
+      // --- Event Listeners ---
+
+      // 1. Setup Form Submission
+      setupForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const endVal = inputEndTime.value || '18:00';
+        const salVal = parseFloat(inputDailySalary.value);
+        const hrsVal = parseFloat(inputWorkHours.value);
+        const daysVal = parseInt(inputPassedDays.value, 10);
+
+        state.endTimeStr = endVal;
+        state.dailySalary = (!isNaN(salVal) && salVal > 0) ? salVal : 129.30;
+        state.workHours = (!isNaN(hrsVal) && hrsVal > 0) ? hrsVal : 7.50;
+        state.passedDays = (!isNaN(daysVal) && daysVal >= 0) ? daysVal : 0;
+        state.includeMonthHistory = state.passedDays > 0;
+        monthModeLabel.textContent = state.includeMonthHistory ? `含${state.passedDays}天满勤` : '仅今日';
+
+        state.hasConfigured = true;
+        setupOverlay.classList.add('hidden');
+        btnCloseSetup.classList.remove('hidden');
+
+        try {
+          localStorage.setItem('work_motivator_16_9_cfg', JSON.stringify({
+            endTimeStr: state.endTimeStr,
+            dailySalary: state.dailySalary,
+            workHours: state.workHours,
+            passedDays: state.passedDays
+          }));
+        } catch (err) {}
+
+        renderTick();
+        showToast('⚡ 鼓励器已启动！每秒都在稳稳进账');
+      });
+
+      // Open & Close Settings Modal
+      btnOpenSettings.addEventListener('click', () => {
+        inputEndTime.value = state.endTimeStr;
+        inputDailySalary.value = state.dailySalary;
+        inputWorkHours.value = state.workHours;
+        inputPassedDays.value = state.passedDays;
+        updateModalPreview();
+        setupOverlay.classList.remove('hidden');
+      });
+
+      btnCloseSetup.addEventListener('click', () => {
+        setupOverlay.classList.add('hidden');
+      });
+
+      // 2. Toggle Timer (关闭计时器 / 开启计时器)
+      btnToggleTimer.addEventListener('click', () => {
+        state.isRunning = !state.isRunning;
+        if (!state.isRunning) {
+          state.pausedAtMs = Date.now();
+          toggleTimerText.textContent = '开启计时器';
+          btnToggleTimer.classList.replace('bg-[#141b2d]', 'bg-blue-700');
+          showToast('⏸ 计时器已暂停');
+        } else {
+          state.pausedAtMs = null;
+          toggleTimerText.textContent = '关闭计时器';
+          btnToggleTimer.classList.replace('bg-blue-700', 'bg-[#141b2d]');
+          showToast('▶️ 计时器已恢复实时跳动');
+        }
+        renderTick();
+      });
+
+      // 3. Switch Fun Milestone Item
+      btnNextMilestone.addEventListener('click', () => {
+        state.milestoneIndex = (state.milestoneIndex + 1) % MILESTONES.length;
+        renderTick();
+      });
+
+      // 4. Cheer / Coin Particle Button
+      btnQuickBossKey.addEventListener('click', () => {
+        const span = document.createElement('span');
+        span.className = 'coin-particle absolute left-0 bottom-0 text-xs font-bold text-amber-600 font-mono-num whitespace-nowrap';
+        const cheers = ['+摸鱼回血!', '+奶茶基金!', '+带薪呼吸!', '+精神股东!', '+今日稳赚!'];
+        span.textContent = cheers[Math.floor(Math.random() * cheers.length)];
+        coinParticleContainer.appendChild(span);
+        setTimeout(() => span.remove(), 900);
+      });
+
+      // 5. Toggle Monthly Cumulative Mode
+      btnToggleMonthMode.addEventListener('click', () => {
+        if (state.passedDays === 0) {
+          const todayDate = new Date().getDate();
+          state.passedDays = Math.max(1, todayDate - 1);
+          inputPassedDays.value = state.passedDays;
+        }
+        state.includeMonthHistory = !state.includeMonthHistory;
+        monthModeLabel.textContent = state.includeMonthHistory ? `含${state.passedDays}天满勤` : '仅今日';
+        renderTick();
+        showToast(state.includeMonthHistory ? `已按本月 ${state.passedDays} 个已过满勤日补算累计` : '已切换为仅展示今日已赚');
+      });
+
+      // 6. Toggle Top-Right Corner Mini-Window Preview Mode
+      function toggleCornerMode() {
+        state.dockedCorner = !state.dockedCorner;
+        document.body.classList.toggle('docked-top-right', state.dockedCorner);
+        cornerPreviewLabel.textContent = state.dockedCorner ? '恢复居中尺寸' : '右上角小窗预览';
+        showToast(state.dockedCorner ? '📌 已切换至右上角 9:16 竖屏小窗预览' : '已恢复 9:16 居中视图');
+      }
+      btnCornerPreview.addEventListener('click', toggleCornerMode);
+      btnMinimize.addEventListener('click', toggleCornerMode);
+
+      // 7. Toggle Paper / Dark Theme
+      btnThemeToggle.addEventListener('click', () => {
+        state.darkMode = !state.darkMode;
+        appWindow.classList.toggle('paper-surface', !state.darkMode);
+        appWindow.classList.toggle('dark-surface', state.darkMode);
+        themeIcon.textContent = state.darkMode ? '🌙 暗黑' : '☀️ 纸感';
+        renderTick();
+      });
+
+      // 8. System-Level Picture-in-Picture (Always-on-top 9:16 Portrait Floating Window)
+      async function triggerPictureInPicture() {
+        try {
+          if (document.pictureInPictureElement) {
+            await document.exitPictureInPicture();
+            showToast('已退出画中画小窗');
+            return;
+          }
+          renderTick();
+          if (pipVideo.srcObject === null && typeof pipCanvas.captureStream === 'function') {
+            const stream = pipCanvas.captureStream(15);
+            pipVideo.srcObject = stream;
+          }
+          await pipVideo.play();
+          if (typeof pipVideo.requestPictureInPicture === 'function') {
+            await pipVideo.requestPictureInPicture();
+            showToast('✨ 已开启 9:16 竖屏画中画悬浮窗，可拖至右上角常驻！');
+          } else {
+            toggleCornerMode();
+          }
+        } catch (err) {
+          if (!state.dockedCorner) {
+            toggleCornerMode();
+          } else {
+            showToast('当前环境已启用页面右上角 9:16 竖屏小窗模式');
+          }
+        }
+      }
+      btnPipTop.addEventListener('click', triggerPictureInPicture);
+      btnPipWindow.addEventListener('click', triggerPictureInPicture);
+
+      // --- High-Frequency Animation Loop (100ms for smooth 4-decimal money ticking) ---
+      let intervalId = null;
+      function startLoop() {
+        if (intervalId) clearInterval(intervalId);
+        renderTick();
+        intervalId = setInterval(renderTick, 100);
+      }
+
+      window.addEventListener('load', startLoop);
+      startLoop();
+    })();
+  </script>
+</body>
+</html>
